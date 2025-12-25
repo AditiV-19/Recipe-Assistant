@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>AI Recipe Assistant</title>
+</head>
+<body class="bg-slate-900 text-white min-h-screen p-10">
+    <div class="max-w-4xl mx-auto">
+        <header class="text-center mb-10">
+            <h1 class="text-5xl font-extrabold mb-2 bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
+                Recipe-Assistant
+            </h1>
+            <p class="text-slate-400">Input your ingredients, and I'll find the perfect match.</p>
+        </header>
+
+        <div class="bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl">
+            <div class="flex gap-4 mb-6">
+                <input id="ingInput" type="text" placeholder="Add ingredients (use commas for multiple)" 
+                    class="flex-1 bg-slate-900 border border-slate-600 p-4 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none">
+                <button onclick="addIngredient()" class="bg-orange-500 px-8 py-4 rounded-xl font-bold hover:bg-orange-600 transition">Add</button>
+            </div>
+
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500">Your Pantry</h3>
+                <button onclick="clearPantry()" class="text-xs text-red-400 hover:underline">Clear All</button>
+            </div>
+            
+            <div id="pantry" class="flex flex-wrap gap-2 mb-8 min-h-[40px]"></div>
+
+            <button onclick="getRecipes()" class="w-full bg-gradient-to-r from-orange-500 to-red-600 p-4 rounded-xl font-bold text-xl uppercase tracking-widest hover:opacity-90 transition shadow-lg shadow-orange-900/20">
+                Match My Recipes
+            </button>
+        </div>
+
+        <div id="results" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10"></div>
+    </div>
+
+    <div id="recipeModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-3xl p-8 shadow-2xl relative">
+            <button onclick="closeModal()" class="absolute top-6 right-6 text-slate-400 hover:text-white text-2xl">&times;</button>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let myIngredients = [];
+        let currentRecipes = [];
+
+        function addIngredient() {
+            const input = document.getElementById('ingInput');
+            if (!input.value) return;
+            
+            const newItems = input.value.split(/[ ,]+/).filter(item => item.trim() !== "");
+
+            newItems.forEach(item => {
+                const cleanItem = item.toLowerCase().trim();
+                if (!myIngredients.includes(cleanItem)) {
+                    myIngredients.push(cleanItem);
+                }
+            });
+
+            renderPantry();
+            input.value = '';
+        }
+
+        function removeIngredient(index) {
+            myIngredients.splice(index, 1);
+            renderPantry();
+        }
+
+        function clearPantry() {
+            myIngredients = [];
+            renderPantry();
+        }
+
+        function renderPantry() {
+            const container = document.getElementById('pantry');
+            container.innerHTML = myIngredients.map((i, index) => 
+                `<span class="bg-slate-700 px-4 py-2 rounded-full border border-slate-500 text-orange-400 flex items-center gap-2">
+                    # ${i}
+                    <button onclick="removeIngredient(${index})" class="text-slate-500 hover:text-red-400 font-bold">&times;</button>
+                </span>`
+            ).join('');
+        }
+
+        async function getRecipes() {
+            const resultsDiv = document.getElementById('results');
+            if (myIngredients.length === 0) {
+                resultsDiv.innerHTML = "<p class='text-orange-400'>Please add some ingredients first!</p>";
+                return;
+            }
+            resultsDiv.innerHTML = "<p class='text-orange-400'>Searching the kitchen...</p>";
+
+            try {
+                const res = await fetch('http://localhost:5000/find-recipes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ingredients: myIngredients })
+                });
+                const recipes = await res.json();
+                
+                if (recipes.length === 0) {
+                    resultsDiv.innerHTML = "<p class='text-slate-400'>No matches found. Try adding simpler ingredients!</p>";
+                    return;
+                }
+
+                currentRecipes = recipes;
+
+                resultsDiv.innerHTML = recipes.map((r, index) => `
+                    <div class="bg-slate-800 border ${r.matchCount === myIngredients.length ? 'border-green-500' : 'border-slate-700'} p-6 rounded-2xl shadow-lg relative group transition-all hover:scale-[1.02]">
+                        <div class="absolute top-0 right-0 bg-orange-500 text-black px-3 py-1 text-xs font-bold rounded-bl-lg">
+                            ${r.matchCount} Matched
+                        </div>
+                        <h2 class="text-xl font-bold text-orange-500 mb-2 mt-2">${r.TranslatedRecipeName}</h2>
+                        
+                        <div class="flex gap-4 mb-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            <span class="flex items-center gap-1">⏱️ ${r.TotalTimeInMins || '30'} Min</span>
+                            <span class="flex items-center gap-1">👥 Serves: ${r.Servings || '2-4'}</span>
+                        </div>
+
+                        <p class="text-slate-300 text-sm line-clamp-2 mb-4 italic">"${r.TranslatedInstructions.substring(0, 80)}..."</p>
+                        
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-slate-500 uppercase font-semibold">${r.Cuisine}</span>
+                            <button onclick="openModal(${index})" class="bg-orange-500 text-black text-xs px-4 py-2 rounded-lg font-bold hover:bg-orange-400 transition shadow-md shadow-orange-950/20">
+                                View Full Recipe
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                resultsDiv.innerHTML = "<p class='text-red-500'>Error: Make sure your server.js is running!</p>";
+            }
+        }
+
+        function openModal(index) {
+            const recipe = currentRecipes[index];
+            const modal = document.getElementById('recipeModal');
+            const content = document.getElementById('modalContent');
+            
+            content.innerHTML = `
+                <h2 class="text-3xl font-bold text-orange-500 mb-4">${recipe.TranslatedRecipeName}</h2>
+                
+                <div class="flex flex-wrap gap-3 mb-6">
+                    <span class="bg-orange-900/30 text-orange-400 px-3 py-1 rounded-full text-xs border border-orange-900">${recipe.Cuisine}</span>
+                    <span class="bg-blue-900/30 text-blue-400 px-3 py-1 rounded-full text-xs border border-blue-900">${recipe.Diet}</span>
+                    <span class="bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-xs">⏰ ${recipe.TotalTimeInMins} Mins</span>
+                    <span class="bg-green-900/30 text-green-400 px-3 py-1 rounded-full text-xs border border-green-900">👥 Yields: ${recipe.Servings} Serves</span>
+                </div>
+
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold text-white mb-3">All Ingredients Needed:</h3>
+                    <ul class="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-400 text-sm">
+                        ${recipe.TranslatedIngredients.split(',').map(ing => `<li>• ${ing.trim()}</li>`).join('')}
+                    </ul>
+                </div>
+
+                <div class="mb-8 border-t border-slate-700 pt-6">
+                    <h3 class="text-lg font-bold text-white mb-3">Cooking Instructions:</h3>
+                    <div class="text-slate-300 text-sm leading-relaxed space-y-4">
+                        ${recipe.TranslatedInstructions.split('.').filter(s => s.trim()).map(step => `<p>• ${step.trim()}.</p>`).join('')}
+                    </div>
+                </div>
+
+                ${recipe.missingItems && recipe.missingItems.length > 0 ? `
+                    <div class="mt-8 p-6 bg-orange-500/10 border border-orange-500/30 rounded-2xl">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-xl">🤖</span>
+                            <p class="text-orange-500 font-bold">Chef AI Substitution</p>
+                        </div>
+                        <p class="text-slate-300 text-sm mb-4">You are missing: <span class="text-red-400">${recipe.missingItems.join(', ')}</span></p>
+                        <p id="aiAdvice" class="text-slate-300 text-sm italic leading-relaxed border-l-2 border-orange-500 pl-4 mb-4"></p>
+                        <button onclick="askAIChef(${index})" id="aiBtn" class="bg-orange-500 text-black px-4 py-2 rounded-xl text-xs font-bold hover:bg-orange-400">
+                            Ask for Substitutions
+                        </button>
+                    </div>
+                ` : '<p class="text-green-400 font-bold">✅ You have all ingredients!</p>'}
+            `;
+
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('recipeModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        async function askAIChef(index) {
+            const recipe = currentRecipes[index];
+            const btn = document.getElementById('aiBtn');
+            const adviceBox = document.getElementById('aiAdvice');
+            
+            const rName = recipe.TranslatedRecipeName || recipe.RecipeName;
+            const mItems = recipe.missingItems || [];
+
+            btn.innerText = "Consulting Chef AI...";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('http://localhost:5000/ai-analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recipeName: rName,
+                        missingItems: mItems,
+                        userPantry: myIngredients
+                    })
+                });
+                const data = await res.json();
+                adviceBox.innerText = data.advice || "No specific swap found.";
+            } catch (e) {
+                adviceBox.innerText = "Error reaching AI.";
+            } finally {
+                btn.style.display = 'none';
+            }
+        }
+
+        document.getElementById('ingInput').addEventListener('keyup', (e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+                addIngredient();
+            }
+        });
+    </script>
+</body>
+</html>
