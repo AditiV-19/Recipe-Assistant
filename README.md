@@ -11,8 +11,10 @@ A full-stack web application that helps users find recipes based on the ingredie
 ### 🛠️ Tech Stack
 - **Frontend:** HTML5, Tailwind CSS, JavaScript (ES6+)
 - **Backend:** Node.js, Express.js
-- **Database:** MongoDB Atlas
+- **Database:** MongoDB Atlas(Cloud Storage), MongoDB Compass (Data Management & Visualization)
 - **AI Integration:** @google/genai (Gemini SDK)
 
 ### 📸 Preview
-<img width="1382" height="915" alt="image" src="https://github.com/user-attachments/assets/ce07d27c-aa7f-4886-8e89-2d33797a4c18" />
+<img width="1920" height="909" alt="image" src="https://github.com/user-attachments/assets/6fe55816-d5bb-49ac-bb76-7bd68e56f55d" />
+
+
